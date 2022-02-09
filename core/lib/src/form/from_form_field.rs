@@ -5,8 +5,8 @@ use std::num::{
     NonZeroUsize, NonZeroU8, NonZeroU16, NonZeroU32, NonZeroU64, NonZeroU128,
 };
 
-use time::{Date, Time, PrimitiveDateTime};
-use time::{macros::format_description, format_description::FormatItem};
+use time::{Date, Time, PrimitiveDateTime, OffsetDateTime};
+use time::{macros::format_description, format_description::{FormatItem,well_known::Rfc3339}};
 
 use crate::data::Capped;
 use crate::http::uncased::AsUncased;
@@ -366,6 +366,7 @@ static DATE_TIME_FMT1: &[FormatItem<'_>] =
 static DATE_TIME_FMT2: &[FormatItem<'_>] =
     format_description!("[year padding:none]-[month]-[day]T[hour padding:none]:[minute]");
 
+
 impl<'v> FromFormField<'v> for Date {
     fn from_value(field: ValueField<'v>) -> Result<'v, Self> {
         let date = Self::parse(field.value, &DATE_FMT)
@@ -391,6 +392,14 @@ impl<'v> FromFormField<'v> for PrimitiveDateTime {
             .or_else(|_| Self::parse(field.value, &DATE_TIME_FMT2))
             .map_err(|e| Box::new(e) as Box<dyn std::error::Error + Send>)?;
 
+        Ok(dt)
+    }
+}
+
+impl<'v> FromFormField<'v> for OffsetDateTime {
+    fn from_value(field: ValueField<'v>) -> Result<'v, Self> {
+        let dt = OffsetDateTime::parse( field.value, &Rfc3339)
+            .map_err(|e| Box::new(e) as Box<dyn std::error::Error + Send>)?;
         Ok(dt)
     }
 }
