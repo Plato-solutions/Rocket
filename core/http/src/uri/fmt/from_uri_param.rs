@@ -1,5 +1,6 @@
 use std::collections::{BTreeMap, HashMap};
 use std::path::{Path, PathBuf};
+use serde_json::Value;
 
 use crate::uri::fmt::UriDisplay;
 use crate::uri::fmt::{self, Part};
@@ -297,8 +298,9 @@ impl_from_uri_param_identity! {
     IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr, SocketAddrV4, SocketAddrV6,
     NonZeroIsize, NonZeroI8, NonZeroI16, NonZeroI32, NonZeroI64, NonZeroI128,
     NonZeroUsize, NonZeroU8, NonZeroU16, NonZeroU32, NonZeroU64, NonZeroU128,
-    time::Date, time::Time, time::PrimitiveDateTime,
+    time::Date, time::Time, time::PrimitiveDateTime,Value
 }
+
 
 impl_from_uri_param_identity! {
     ('a) &'a str,

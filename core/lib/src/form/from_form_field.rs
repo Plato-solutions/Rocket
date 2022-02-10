@@ -4,9 +4,12 @@ use std::num::{
     NonZeroIsize, NonZeroI8, NonZeroI16, NonZeroI32, NonZeroI64, NonZeroI128,
     NonZeroUsize, NonZeroU8, NonZeroU16, NonZeroU32, NonZeroU64, NonZeroU128,
 };
+use serde_json::Value;
+
 
 use time::{Date, Time, PrimitiveDateTime, OffsetDateTime};
 use time::{macros::format_description, format_description::{FormatItem,well_known::Rfc3339}};
+
 
 use crate::data::Capped;
 use crate::http::uncased::AsUncased;
@@ -307,6 +310,27 @@ impl<'v> FromFormField<'v> for Capped<String> {
 
 impl_strict_from_form_field_from_capped!(String);
 
+#[crate::async_trait]
+impl<'v> FromFormField<'v> for Capped<Value> {
+    fn from_value(field: ValueField<'v>) -> Result<'v, Self> {
+        let capped = <Capped<&'v str>>::from_value(field)?;
+        Ok(capped.map(|s| serde_json::json!(s)))    }
+
+    async fn from_data(f: DataField<'v, '_>) -> Result<'v, Self> {
+        use crate::data::{Capped, Outcome, FromData};
+
+        match <Capped<Value> as FromData>::from_data(f.request, f.data).await {
+            Outcome::Success(p) => Ok(p),
+            Outcome::Failure((_, e)) => Err(e)?,
+            Outcome::Forward(..) => {
+                Err(Error::from(ErrorKind::Unexpected).with_entity(Entity::DataField))?
+            }
+        }
+    }
+}
+
+impl_strict_from_form_field_from_capped!(Value);
+
 impl<'v> FromFormField<'v> for bool {
     fn default() -> Option<Self> {
         Some(false)
@@ -356,6 +380,7 @@ impl_with_parse!(
     NonZeroUsize, NonZeroU8, NonZeroU16, NonZeroU32, NonZeroU64, NonZeroU128,
     Ipv4Addr, IpAddr, Ipv6Addr, SocketAddrV4, SocketAddrV6, SocketAddr
 );
+
 //
 // Keep formats in sync with 'FromFormField' impls.
 static DATE_FMT: &[FormatItem<'_>] = format_description!("[year padding:none]-[month]-[day]");
