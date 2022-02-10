@@ -1,4 +1,3 @@
-use serde_json::Value;
 use crate::http::{RawStr, Status};
 use crate::request::{Request, local_cache};
 use crate::data::{Data, Limits};
@@ -271,19 +270,6 @@ impl<'r> FromData<'r> for Capped<Vec<u8>> {
 }
 
 impl_strict_from_data_from_capped!(Vec<u8>);
-
-#[crate::async_trait]
-impl<'r> FromData<'r> for Capped<Value> {
-    type Error = std::io::Error;
-
-    async fn from_data(req: &'r Request<'_>, data: Data<'r>) -> Outcome<'r, Self> {
-        let capped = try_outcome!(<Capped<Value>>::from_data(req, data).await);
-        let raw = capped.map(|v| serde_json::json!(v));
-        Success(raw)
-    }
-}
-
-impl_strict_from_data_from_capped!(Value);
 
 #[crate::async_trait]
 impl<'r> FromData<'r> for Data<'r> {
