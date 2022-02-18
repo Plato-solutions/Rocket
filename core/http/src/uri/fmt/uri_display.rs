@@ -1,6 +1,7 @@
 use std::collections::{BTreeMap, HashMap};
 use std::{fmt, path};
 use std::borrow::Cow;
+use serde_json::Value;
 
 use time::{macros::format_description, format_description::FormatItem};
 
@@ -384,6 +385,7 @@ impl_with_string! {
     SocketAddr => |a| Ok(a.to_string()),
     SocketAddrV4 => |a| Ok(a.to_string()),
     SocketAddrV6 => |a| Ok(a.to_string()),
+    serde_json::Value => |a| Ok(a.to_string()),
 }
 
 // These are second level implementations: they all defer to an existing
