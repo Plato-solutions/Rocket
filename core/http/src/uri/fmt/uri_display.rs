@@ -382,6 +382,7 @@ impl_with_string! {
     time::Date => |d| d.format(&DATE_FMT).map_err(|_| fmt::Error),
     time::Time => |d| d.format(&TIME_FMT).map_err(|_| fmt::Error),
     time::PrimitiveDateTime => |d| d.format(&DATE_TIME_FMT).map_err(|_| fmt::Error),
+    time::OffsetDateTime => |d| d.format(&time::format_description::well_known::Rfc3339).map_err(|_| fmt::Error),
     SocketAddr => |a| Ok(a.to_string()),
     SocketAddrV4 => |a| Ok(a.to_string()),
     SocketAddrV6 => |a| Ok(a.to_string()),
