@@ -34,7 +34,7 @@ use crate::form::prelude as form;
 use crate::http::uri::fmt::{UriDisplay, FromUriParam, Query, Formatter as UriFormatter};
 use crate::http::Status;
 
-use serde::{Serialize, Deserialize};
+use serde::{Serialize, Deserialize, Serializer, Deserializer};
 
 #[doc(hidden)]
 pub use serde_json;
@@ -126,6 +126,23 @@ pub use serde_json;
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Json<T>(pub T);
 
+impl <T>Default for Json<T> where T:Default {
+    fn default() -> Self {
+        Json(T::default())
+    }
+}
+
+impl <T>Serialize for Json<T> where T:Serialize {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error> where S: Serializer {
+        T::serialize(&self.0, serializer)
+    }
+}
+
+impl <'de,T>Deserialize<'de> for Json<T> where T:Deserialize<'de> {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error> where D: Deserializer<'de>{
+        Ok(Json(T::deserialize(deserializer)?))
+    }
+}
 /// Error returned by the [`Json`] guard when JSON deserialization fails.
 #[derive(Debug)]
 pub enum Error<'a> {
