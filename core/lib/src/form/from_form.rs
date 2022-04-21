@@ -559,7 +559,7 @@ pub struct VecContext<'v, T: FromForm<'v>> {
     last_key: Option<&'v Key>,
     current: Option<T::Context>,
     errors: Errors<'v>,
-    items: Vec<T>
+    items: Box<Vec<T>>
 }
 
 impl<'v, T: FromForm<'v>> VecContext<'v, T> {
@@ -598,7 +598,7 @@ impl<'v, T: FromForm<'v> + 'v> FromForm<'v> for Vec<T> {
             opts,
             last_key: None,
             current: None,
-            items: vec![],
+            items: Box::new(vec![]),
             errors: Errors::new(),
         }
     }
@@ -614,7 +614,7 @@ impl<'v, T: FromForm<'v> + 'v> FromForm<'v> for Vec<T> {
     fn finalize(mut this: Self::Context) -> Result<'v, Self> {
         this.shift();
         match this.errors.is_empty() {
-            true => Ok(this.items),
+            true => Ok(*this.items),
             false => Err(this.errors)?,
         }
     }
@@ -625,8 +625,8 @@ pub struct MapContext<'v, K, V> where K: FromForm<'v>, V: FromForm<'v> {
     opts: Options,
     /// Maps from the string key to the index in `map`.
     key_map: IndexMap<&'v str, (usize, NameView<'v>)>,
-    keys: Vec<K::Context>,
-    values: Vec<V::Context>,
+    keys: Box<Vec<K::Context>>,
+    values: Box<Vec<V::Context>>,
     errors: Errors<'v>,
 }
 
@@ -637,8 +637,8 @@ impl<'v, K, V> MapContext<'v, K, V>
         MapContext {
             opts,
             key_map: IndexMap::new(),
-            keys: vec![],
-            values: vec![],
+            keys: Box::new(vec![]),
+            values: Box::new(vec![]),
             errors: Errors::new(),
         }
     }
@@ -718,7 +718,7 @@ impl<'v, K, V> MapContext<'v, K, V>
     }
 
     fn finalize<T: std::iter::FromIterator<(K, V)>>(self) -> Result<'v, T> {
-        let (keys, values, key_map) = (self.keys, self.values, self.key_map);
+        let (keys, values, key_map) = (*self.keys, *self.values, self.key_map);
         let errors = std::cell::RefCell::new(self.errors);
 
         let keys = keys.into_iter()
@@ -834,8 +834,8 @@ impl<'v, T: FromForm<'v>> FromForm<'v> for Result<'v, T> {
 
 #[doc(hidden)]
 pub struct PairContext<'v, A: FromForm<'v>, B: FromForm<'v>> {
-    left: A::Context,
-    right: B::Context,
+    left: Box<A::Context>,
+    right: Box<B::Context>,
     errors: Errors<'v>,
 }
 
@@ -845,8 +845,8 @@ impl<'v, A: FromForm<'v>, B: FromForm<'v>> PairContext<'v, A, B> {
         name: NameView<'v>
     ) -> std::result::Result<Either<&mut A::Context, &mut B::Context>, Error<'v>> {
         match name.key().map(|k| k.as_str()) {
-            Some("0") => Ok(Either::Left(&mut self.left)),
-            Some("1") => Ok(Either::Right(&mut self.right)),
+            Some("0") => Ok(Either::Left(&mut *self.left)),
+            Some("1") => Ok(Either::Right(&mut *self.right)),
             _ => Err(Error::from(&[Cow::Borrowed("0"), Cow::Borrowed("1")])
                 .with_entity(Entity::Index(0))
                 .with_name(name)),
@@ -860,8 +860,8 @@ impl<'v, A: FromForm<'v>, B: FromForm<'v>> FromForm<'v> for (A, B) {
 
     fn init(opts: Options) -> Self::Context {
         PairContext {
-            left: A::init(opts),
-            right: B::init(opts),
+            left: Box::new(A::init(opts)),
+            right: Box::new(B::init(opts)),
             errors: Errors::new()
         }
     }
@@ -883,7 +883,7 @@ impl<'v, A: FromForm<'v>, B: FromForm<'v>> FromForm<'v> for (A, B) {
     }
 
     fn finalize(mut ctxt: Self::Context) -> Result<'v, Self> {
-        match (A::finalize(ctxt.left), B::finalize(ctxt.right)) {
+        match (A::finalize(*ctxt.left), B::finalize(*ctxt.right)) {
             (Ok(key), Ok(val)) if ctxt.errors.is_empty() => Ok((key, val)),
             (Ok(_), Ok(_)) => Err(ctxt.errors)?,
             (left, right) => {
