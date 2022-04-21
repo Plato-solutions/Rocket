@@ -122,7 +122,7 @@ pub use serde_json;
 /// [global.limits]
 /// json = 5242880
 /// ```
-#[repr(transparent)]
+
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Json<T>(pub T);
 

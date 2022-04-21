@@ -1,7 +1,6 @@
 use std::collections::{BTreeMap, HashMap};
 use std::{fmt, path};
 use std::borrow::Cow;
-use serde_json::Value;
 
 use time::{macros::format_description, format_description::FormatItem};
 

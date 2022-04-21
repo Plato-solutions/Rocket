@@ -559,7 +559,7 @@ pub struct VecContext<'v, T: FromForm<'v>> {
     last_key: Option<&'v Key>,
     current: Option<T::Context>,
     errors: Errors<'v>,
-    items: Box<Vec<T>>
+    items: Vec<T>
 }
 
 impl<'v, T: FromForm<'v>> VecContext<'v, T> {
@@ -591,16 +591,16 @@ impl<'v, T: FromForm<'v>> VecContext<'v, T> {
 
 #[crate::async_trait]
 impl<'v, T: FromForm<'v> + 'v> FromForm<'v> for Vec<T> {
-    type Context = VecContext<'v, T>;
+    type Context = Box<VecContext<'v, T>>;
 
     fn init(opts: Options) -> Self::Context {
-        VecContext {
+        Box::new(VecContext {
             opts,
             last_key: None,
             current: None,
-            items: Box::new(vec![]),
+            items: vec![],
             errors: Errors::new(),
-        }
+        })
     }
 
     fn push_value(this: &mut Self::Context, field: ValueField<'v>) {
@@ -614,7 +614,7 @@ impl<'v, T: FromForm<'v> + 'v> FromForm<'v> for Vec<T> {
     fn finalize(mut this: Self::Context) -> Result<'v, Self> {
         this.shift();
         match this.errors.is_empty() {
-            true => Ok(*this.items),
+            true => Ok(this.items),
             false => Err(this.errors)?,
         }
     }
@@ -625,8 +625,8 @@ pub struct MapContext<'v, K, V> where K: FromForm<'v>, V: FromForm<'v> {
     opts: Options,
     /// Maps from the string key to the index in `map`.
     key_map: IndexMap<&'v str, (usize, NameView<'v>)>,
-    keys: Box<Vec<K::Context>>,
-    values: Box<Vec<V::Context>>,
+    keys: Vec<K::Context>,
+    values: Vec<V::Context>,
     errors: Errors<'v>,
 }
 
@@ -637,8 +637,8 @@ impl<'v, K, V> MapContext<'v, K, V>
         MapContext {
             opts,
             key_map: IndexMap::new(),
-            keys: Box::new(vec![]),
-            values: Box::new(vec![]),
+            keys: vec![],
+            values: vec![],
             errors: Errors::new(),
         }
     }
@@ -718,7 +718,7 @@ impl<'v, K, V> MapContext<'v, K, V>
     }
 
     fn finalize<T: std::iter::FromIterator<(K, V)>>(self) -> Result<'v, T> {
-        let (keys, values, key_map) = (*self.keys, *self.values, self.key_map);
+        let (keys, values, key_map) = (self.keys, self.values, self.key_map);
         let errors = std::cell::RefCell::new(self.errors);
 
         let keys = keys.into_iter()
@@ -748,10 +748,10 @@ impl<'v, K, V> MapContext<'v, K, V>
 impl<'v, K, V> FromForm<'v> for HashMap<K, V>
     where K: FromForm<'v> + Eq + Hash, V: FromForm<'v>
 {
-    type Context = MapContext<'v, K, V>;
+    type Context = Box<MapContext<'v, K, V>>;
 
     fn init(opts: Options) -> Self::Context {
-        MapContext::new(opts)
+        Box::new(MapContext::new(opts))
     }
 
     fn push_value(ctxt: &mut Self::Context, field: ValueField<'v>) {
@@ -771,10 +771,10 @@ impl<'v, K, V> FromForm<'v> for HashMap<K, V>
 impl<'v, K, V> FromForm<'v> for BTreeMap<K, V>
     where K: FromForm<'v> + Ord, V: FromForm<'v>
 {
-    type Context = MapContext<'v, K, V>;
+    type Context = Box<MapContext<'v, K, V>>;
 
     fn init(opts: Options) -> Self::Context {
-        MapContext::new(opts)
+        Box::new(MapContext::new(opts))
     }
 
     fn push_value(ctxt: &mut Self::Context, field: ValueField<'v>) {
@@ -792,10 +792,10 @@ impl<'v, K, V> FromForm<'v> for BTreeMap<K, V>
 
 #[crate::async_trait]
 impl<'v, T: FromForm<'v>> FromForm<'v> for Option<T> {
-    type Context = <T as FromForm<'v>>::Context;
+    type Context = Box<<T as FromForm<'v>>::Context>;
 
     fn init(opts: Options) -> Self::Context {
-        T::init(Options { strict: true, ..opts })
+        Box::new(T::init(Options { strict: true, ..opts }))
     }
 
     fn push_value(ctxt: &mut Self::Context, field: ValueField<'v>) {
@@ -807,16 +807,16 @@ impl<'v, T: FromForm<'v>> FromForm<'v> for Option<T> {
     }
 
     fn finalize(this: Self::Context) -> Result<'v, Self> {
-        Ok(T::finalize(this).ok())
+        Ok(T::finalize(*this).ok())
     }
 }
 
 #[crate::async_trait]
 impl<'v, T: FromForm<'v>> FromForm<'v> for Result<'v, T> {
-    type Context = <T as FromForm<'v>>::Context;
+    type Context = Box<<T as FromForm<'v>>::Context>;
 
     fn init(opts: Options) -> Self::Context {
-        T::init(opts)
+        Box::new(T::init(opts))
     }
 
     fn push_value(ctxt: &mut Self::Context, field: ValueField<'v>) {
@@ -828,14 +828,14 @@ impl<'v, T: FromForm<'v>> FromForm<'v> for Result<'v, T> {
     }
 
     fn finalize(this: Self::Context) -> Result<'v, Self> {
-        Ok(T::finalize(this))
+        Ok(T::finalize(*this))
     }
 }
 
 #[doc(hidden)]
 pub struct PairContext<'v, A: FromForm<'v>, B: FromForm<'v>> {
-    left: Box<A::Context>,
-    right: Box<B::Context>,
+    left: A::Context,
+    right: B::Context,
     errors: Errors<'v>,
 }
 
@@ -845,8 +845,8 @@ impl<'v, A: FromForm<'v>, B: FromForm<'v>> PairContext<'v, A, B> {
         name: NameView<'v>
     ) -> std::result::Result<Either<&mut A::Context, &mut B::Context>, Error<'v>> {
         match name.key().map(|k| k.as_str()) {
-            Some("0") => Ok(Either::Left(&mut *self.left)),
-            Some("1") => Ok(Either::Right(&mut *self.right)),
+            Some("0") => Ok(Either::Left(&mut self.left)),
+            Some("1") => Ok(Either::Right(&mut self.right)),
             _ => Err(Error::from(&[Cow::Borrowed("0"), Cow::Borrowed("1")])
                 .with_entity(Entity::Index(0))
                 .with_name(name)),
@@ -856,14 +856,14 @@ impl<'v, A: FromForm<'v>, B: FromForm<'v>> PairContext<'v, A, B> {
 
 #[crate::async_trait]
 impl<'v, A: FromForm<'v>, B: FromForm<'v>> FromForm<'v> for (A, B) {
-    type Context = PairContext<'v, A, B>;
+    type Context = Box<PairContext<'v, A, B>>;
 
     fn init(opts: Options) -> Self::Context {
-        PairContext {
-            left: Box::new(A::init(opts)),
-            right: Box::new(B::init(opts)),
+        Box::new(PairContext {
+            left: A::init(opts),
+            right: B::init(opts),
             errors: Errors::new()
-        }
+        })
     }
 
     fn push_value(ctxt: &mut Self::Context, field: ValueField<'v>) {
@@ -883,7 +883,7 @@ impl<'v, A: FromForm<'v>, B: FromForm<'v>> FromForm<'v> for (A, B) {
     }
 
     fn finalize(mut ctxt: Self::Context) -> Result<'v, Self> {
-        match (A::finalize(*ctxt.left), B::finalize(*ctxt.right)) {
+        match (A::finalize(ctxt.left), B::finalize(ctxt.right)) {
             (Ok(key), Ok(val)) if ctxt.errors.is_empty() => Ok((key, val)),
             (Ok(_), Ok(_)) => Err(ctxt.errors)?,
             (left, right) => {
